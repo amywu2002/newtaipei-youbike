@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8" />
-<title>臺北 YouBike 站點地圖</title>
+<title>新北 YouBike 站點地圖</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -225,10 +225,10 @@ fetch(TAIPEI_API)
     dataTP = j.map(s => ({
       name: s.sna,
       addr: s.ar || "",
-      lat: Number(s.latitude),
-      lng: Number(s.longitude),
-      borrow: Number(s.available_rent_bikes),
-      ret: Number(s.available_return_bikes)
+      lat: Number(s.lat),
+      lng: Number(s.lng),
+      borrow: Number(s.sbi),
+      ret: Number(s.bemp)
     }));
     render();
   });
@@ -239,3 +239,4 @@ statusFilter.addEventListener("change", render);
 
 </body>
 </html>
+
