@@ -1,131 +1,66 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8" />
-<title>新北 YouBike 即時地圖</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <meta charset="UTF-8" />
+  <title>新北 YouBike 即時地圖</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<style>
-body{margin:0;font-family:system-ui;}
-#map{height:100vh;}
-#count{
-  position:absolute;top:12px;left:12px;z-index:1000;
-  background:#fff;padding:6px 10px;border-radius:8px;
-}
-#controls{
-  position:absolute;top:12px;left:50%;
-  transform:translateX(-50%);z-index:1000;display:flex;gap:8px;
-}
-#controls input,#controls select{
-  padding:8px;border-radius:8px;border:1px solid #ccc;
-}
-.marker.green{--c:#7AC943;}
-.marker.yellow{--c:#F5A623;}
-.marker.red{--c:#A80000;}
-.leaflet-div-icon{background:transparent;border:none;}
-.marker svg{width:60px;height:68px;}
-</style>
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
+  <style>
+    body { margin: 0; }
+    #map { height: 100vh; width: 100vw; }
+  </style>
 </head>
-
 <body>
-<div id="count">站點：--</div>
-<div id="controls">
-  <input id="search" placeholder="搜尋站點…" />
-  <select id="statusFilter">
-    <option value="all">全部</option>
-    <option value="green">正常</option>
-    <option value="yellow">無車</option>
-    <option value="red">無位</option>
-  </select>
-</div>
+
 <div id="map"></div>
 
+<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <script>
-const map=L.map("map").setView([25.01,121.46],12);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+  // 1️⃣ 建立地圖（新北市中心）
+  const map = L.map("map").setView([25.012, 121.465], 12);
 
-let data=[],markers=[];
+  // 2️⃣ 底圖
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "© OpenStreetMap"
+  }).addTo(map);
 
-/* 狀態 */
-const getStatus=(b,r)=>r===0?"red":b===0?"yellow":"green";
+  // 3️⃣ 透過第三方 proxy 抓 YouBike 資料
+  const api =
+    "https://api.allorigins.win/raw?url=" +
+    encodeURIComponent(
+      "https://api.youbike.com.tw/api/v1/station/status?area=NTPC"
+    );
 
-const markerHTML=(b,r,s)=>`
-<div class="marker ${s}">
-<svg viewBox="0 0 64 72">
-<path d="M32 2C20 2 10 12 10 26C10 44 32 68 32 68C32 68 54 44 54 26C54 12 44 2 32 2Z"
- fill="var(--c)" stroke="#fff" stroke-width="3"/>
-<text x="32" y="26" text-anchor="middle" fill="#fff">${b}</text>
-<text x="32" y="48" text-anchor="middle" fill="#fff">${r}</text>
-</svg>
-</div>`;
+  fetch(api)
+    .then(res => res.json())
+    .then(data => {
+      console.log("站點數量：", data.length);
 
-/* 清 marker */
-function clearMarkers(){
-  markers.forEach(m=>map.removeLayer(m));
-  markers=[];
-}
+      data.forEach(s => {
+        if (!s.lat || !s.lng) return;
 
-/* render */
-function render(){
-  clearMarkers();
-  const kw=search.value.trim();
-  const f=statusFilter.value;
-
-  const list=data.filter(s=>{
-    const st=getStatus(s.borrow,s.ret);
-    if(f!=="all"&&st!==f)return false;
-    if(kw&&!s.name.includes(kw))return false;
-    return true;
-  });
-
-  list.forEach(s=>{
-    const m=L.marker([s.lat,s.lng],{
-      icon:L.divIcon({
-        iconSize:[60,68],
-        iconAnchor:[30,68],
-        html:markerHTML(s.borrow,s.ret,getStatus(s.borrow,s.ret))
-      })
-    }).addTo(map);
-    markers.push(m);
-  });
-
-  count.textContent=`站點：${markers.length}站`;
-}
-
-/* 🔥 正確的新北即時資料（分頁全抓） */
-async function loadAllData(){
-  let page=0;
-  let all=[];
-  while(true){
-    const url=
-      "https://api.allorigins.win/raw?url="+
-      encodeURIComponent(
-        `https://data.ntpc.gov.tw/api/datasets/71CD1490-A2DF-4198-BEF1-318479775E8A/json?page=${page}`
-      );
-
-    const res=await fetch(url);
-    const j=await res.json();
-    if(!j.length)break;
-    all=all.concat(j);
-    page++;
-  }
-
-  data=all.map(s=>({
-    name:s.sna,
-    lat:+s.lat,
-    lng:+s.lng,
-    borrow:Number(s.sbi)||0,
-    ret:Number(s.bemp)||0
-  }));
-
-  render();
-}
-
-loadAllData();
-search.oninput=render;
-statusFilter.onchange=render;
+        L.marker([s.lat, s.lng])
+          .addTo(map)
+          .bindPopup(`
+            <b>${s.station_name}</b><br>
+            可借：${s.available_bikes}<br>
+            可還：${s.available_spaces}
+          `);
+      });
+    })
+    .catch(err => {
+      console.error("抓資料失敗", err);
+    });
 </script>
+
 </body>
 </html>
