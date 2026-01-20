@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<title>新北 YouBike 站點地圖</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<style>
+body { margin:0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+#map { height:100vh; width:100%; }
+
+/* 左上 */
+#count {
+  position:absolute; top:12px; left:12px; z-index:1000;
+  background:#fff; padding:6px 10px;
+  border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.15);
+  font-size:14px;
+}
+
+/* 上方控制 */
+#controls {
+  position:absolute; top:12px; left:50%;
+  transform:translateX(-50%);
+  z-index:1000; display:flex; gap:8px;
+}
+
+#controls input, #controls select {
+  padding:8px 10px; font-size:14px;
+  border-radius:8px; border:1px solid #ccc;
+  background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.15);
+}
+
+/* Marker */
+.marker.green  { --c:#7AC943; }
+.marker.yellow { --c:#F5A623; }
+.marker.red    { --c:#A80000; }
+
+.leaflet-div-icon { background:transparent!important; border:none!important; }
+.marker svg { width:60px; height:68px; }
+
+/* +- */
+.leaflet-top.leaflet-left { right:12px; left:auto; }
+
+/* 使用者定位 */
+.user-dot {
+  width:18px; height:18px; background:#1A73E8;
+  border-radius:50%; border:3px solid #fff;
+  box-shadow:0 0 10px rgba(0,0,0,.45);
+}
+</style>
+</head>
+
+<body>
+
+<div id="count">站點：--</div>
+
+<div id="controls">
+  <input id="search" placeholder="搜尋站點名稱或地址…" />
+  <select id="statusFilter">
+    <option value="all">全部</option>
+    <option value="green">正常</option>
+    <option value="yellow">無車</option>
+    <option value="red">無位</option>
+  </select>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+const NTPC_API =
+  "https://data.ntpc.gov.tw/api/datasets/010e5b15-3823-4b20-b401-b1cf000550c5/json";
+
+/* 地圖 */
+const map = L.map("map").setView([25.01, 121.46], 12);
+map.zoomControl.setPosition("topright");
+
+map.createPane("userLocation");
+map.getPane("userLocation").style.zIndex = 650;
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap"
+}).addTo(map);
+
+let markers = [];
+let data = [];
+let userMarker = null;
+
+/* 使用者定位 */
+navigator.geolocation?.getCurrentPosition(pos => {
+  const { latitude, longitude } = pos.coords;
+  userMarker = L.marker([latitude, longitude], {
+    pane:"userLocation",
+    icon:L.divIcon({ html:`<div class="user-dot"></div>` })
+  }).addTo(map);
+  map.setView([latitude, longitude], 14);
+});
+
+/* 工具 */
+const getStatus = (b,r)=> r===0?"red":b===0?"yellow":"green";
+
+function markerHTML(b,r,s){
+  return `
+  <div class="marker ${s}">
+    <svg viewBox="0 0 64 72">
+      <path d="M32 2 C20 2 10 12 10 26
+               C10 44 32 68 32 68
+               C32 68 54 44 54 26
+               C54 12 44 2 32 2Z"
+        fill="var(--c)" stroke="#fff" stroke-width="3"/>
+      <text x="32" y="26" text-anchor="middle" font-size="16" fill="#fff">${b}</text>
+      <text x="32" y="48" text-anchor="middle" font-size="16" fill="#fff">${r}</text>
+    </svg>
+  </div>`;
+}
+
+/* Render */
+function render(){
+  markers.forEach(m=>map.removeLayer(m));
+  markers=[];
+
+  const kw=search.value.trim();
+  const f=statusFilter.value;
+
+  data.filter(s=>{
+    const st=getStatus(s.borrow,s.ret);
+    if(f!=="all"&&st!==f) return false;
+    if(kw&&!s.name.includes(kw)&&!s.addr.includes(kw)) return false;
+    return true;
+  }).forEach(s=>{
+    const m=L.marker([s.lat,s.lng],{
+      icon:L.divIcon({
+        iconSize:[60,68],
+        iconAnchor:[30,68],
+        html:markerHTML(s.borrow,s.ret,getStatus(s.borrow,s.ret))
+      })
+    }).addTo(map).bindPopup(`
+      <b>${s.name}</b><br>
+      地址：${s.addr}<br>
+      可借：${s.borrow}<br>
+      可還：${s.ret}
+    `);
+    markers.push(m);
+  });
+
+  count.textContent=`站點：${markers.length}站`;
+}
+
+/* 載入新北 */
+fetch(NTPC_API)
+  .then(r=>r.json())
+  .then(j=>{
+    data=j.map(s=>({
+      name:s.sna,
+      addr:s.ar||"",
+      lat:+s.lat,
+      lng:+s.lng,
+      borrow:+s.sbi,
+      ret:+s.bemp
+    }));
+    render();
+  });
+
+search.oninput=render;
+statusFilter.onchange=render;
+</script>
+
+</body>
+</html>
