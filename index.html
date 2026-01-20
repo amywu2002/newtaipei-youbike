@@ -1,65 +1,93 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <title>新北 YouBike 即時地圖</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8" />
+<title>新北 YouBike 即時地圖</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- Leaflet CSS -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
 
-  <style>
-    body { margin: 0; }
-    #map { height: 100vh; width: 100vw; }
-  </style>
+<style>
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+#map {
+  height: 100vh;
+  width: 100%;
+}
+#count {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  background: #fff;
+  padding: 6px 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.15);
+  font-size: 14px;
+}
+</style>
 </head>
+
 <body>
 
+<div id="count">站點：--</div>
 <div id="map"></div>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-  // 1️⃣ 建立地圖（新北市中心）
-  const map = L.map("map").setView([25.012, 121.465], 12);
+/* ========= 地圖 ========= */
+const map = L.map("map").setView([25.012, 121.465], 12);
 
-  // 2️⃣ 底圖
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "© OpenStreetMap"
-  }).addTo(map);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: "© OpenStreetMap"
+}).addTo(map);
 
-  // 3️⃣ 透過第三方 proxy 抓 YouBike 資料
-  const api =
-    "https://api.allorigins.win/raw?url=" +
-    encodeURIComponent(
-      "https://api.youbike.com.tw/api/v1/station/status?area=NTPC"
-    );
+/* ========= 新北 YouBike API（實測可用） ========= */
+const API =
+  "https://api.allorigins.win/raw?url=" +
+  encodeURIComponent(
+    "https://data.ntpc.gov.tw/api/datasets/010E5B15-3823-4B20-B401-B1CF000550C5/json"
+  );
 
-  fetch(api)
-    .then(res => res.json())
-    .then(data => {
-      console.log("站點數量：", data.length);
+/* ========= 抓資料 ========= */
+fetch(API)
+  .then(res => res.json())
+  .then(data => {
+    console.log("站點數量：", data.length);
 
-      data.forEach(s => {
-        if (!s.lat || !s.lng) return;
+    document.getElementById("count").textContent =
+      `站點：${data.length} 站`;
 
-        L.marker([s.lat, s.lng])
-          .addTo(map)
-          .bindPopup(`
-            <b>${s.station_name}</b><br>
-            可借：${s.available_bikes}<br>
-            可還：${s.available_spaces}
-          `);
-      });
-    })
-    .catch(err => {
-      console.error("抓資料失敗", err);
+    data.forEach(s => {
+      // 保險檢查
+      if (!s.lat || !s.lng) return;
+
+      const lat = Number(s.lat);
+      const lng = Number(s.lng);
+      const borrow = Number(s.sbi);
+      const ret = Number(s.bemp);
+
+      L.marker([lat, lng])
+        .addTo(map)
+        .bindPopup(`
+          <b>${s.sna}</b><br>
+          地址：${s.ar}<br>
+          可借：${borrow}<br>
+          可還：${ret}
+        `);
     });
+  })
+  .catch(err => {
+    console.error("資料載入失敗", err);
+    alert("新北 YouBike 資料載入失敗（請看 Console）");
+  });
 </script>
 
 </body>
