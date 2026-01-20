@@ -74,14 +74,14 @@ body {
   left: auto;
 }
 
-/* 🟦 使用者定位（介於 marker 與 popup） */
+/* 🟦 使用者藍點 */
 .user-dot {
   width: 18px;
   height: 18px;
   background: #1A73E8;
   border-radius: 50%;
   border: 3px solid #fff;
-  box-shadow: 0 2px 8px rgba(0,0,0,.4);
+  box-shadow: 0 0 10px rgba(0,0,0,.45);
 }
 </style>
 </head>
@@ -91,7 +91,6 @@ body {
 <div id="count">站點：--</div>
 
 <div id="controls">
-
   <input id="search" placeholder="搜尋站點名稱或地址…" />
 
   <select id="statusFilter">
@@ -107,13 +106,14 @@ body {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-const TAOYUAN_API = "stations.json";
+const TAIPEI_API =
+  "https://green-boat-a984.hippop3c.workers.dev/";
 
 /* 地圖 */
-const map = L.map("map").setView([24.99, 121.30], 12);
+const map = L.map("map").setView([25.03, 121.55], 12);
 map.zoomControl.setPosition("topright");
 
-/* ⭐ 關鍵：藍點圖層（marker 上、popup 下） */
+/* ✅ 使用者定位 pane（最高層） */
 map.createPane("userLocation");
 map.getPane("userLocation").style.zIndex = 650;
 
@@ -122,26 +122,35 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 let markers = [];
-let dataTY = [];
+let dataTP = [];
 let userMarker = null;
 
 /* ===== 使用者定位（自動） ===== */
-if (navigator.geolocation) {
+function locateUser() {
+  if (!navigator.geolocation) return;
+
   navigator.geolocation.getCurrentPosition(pos => {
-    const { latitude, longitude } = pos.coords;
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
 
-    userMarker = L.marker([latitude, longitude], {
-      pane: "userLocation",
-      icon: L.divIcon({
-        className: "",
-        iconSize: [24, 24],
-        html: `<div class="user-dot"></div>`
-      })
-    }).addTo(map);
+    if (!userMarker) {
+      userMarker = L.marker([lat, lng], {
+        pane: "userLocation",
+        zIndexOffset: 0,
+        icon: L.divIcon({
+          className: "",
+          iconSize: [24, 24],
+          html: `<div class="user-dot"></div>`
+        })
+      }).addTo(map);
 
-    map.setView([latitude, longitude], 14);
+      map.setView([lat, lng], 14);
+    } else {
+      userMarker.setLatLng([lat, lng]);
+    }
   });
 }
+locateUser();
 
 /* ===== 工具 ===== */
 function clearMarkers() {
@@ -181,7 +190,7 @@ function render() {
   const kw = search.value.trim();
   const statusF = statusFilter.value;
 
-  const list = dataTY.filter(s => {
+  let list = dataTP.filter(s => {
     const st = getStatus(s.borrow, s.ret);
     if (statusF !== "all" && st !== statusF) return false;
     if (kw && !s.name.includes(kw) && !s.addr.includes(kw)) return false;
@@ -195,12 +204,13 @@ function render() {
         iconAnchor: [30, 68],
         html: makeMarkerHTML(s.borrow, s.ret, getStatus(s.borrow, s.ret))
       })
-    }).addTo(map).bindPopup(`
-      <b>${s.name}</b><br>
-      地址：${s.addr}<br>
-      可借：${s.borrow}<br>
-      可還：${s.ret}
-    `);
+    }).addTo(map)
+      .bindPopup(`
+        <b>${s.name}</b><br>
+        地址：${s.addr}<br>
+        可借：${s.borrow}<br>
+        可還：${s.ret}
+      `);
 
     markers.push(marker);
   });
@@ -208,43 +218,20 @@ function render() {
   count.textContent = `站點：${markers.length}站`;
 }
 
-/* ===== 資料 ===== */
-
-fetch(TAOYUAN_API)
+/* ===== 資料載入（台北） ===== */
+fetch(TAIPEI_API)
   .then(r => r.json())
   .then(j => {
-    // 安全轉數字的小工具：非數字就回 0，避免 NaN
-    const num = v => {
-      const n = Number(v);
-      return Number.isFinite(n) ? n : 0;
-    };
-
-    dataTY = Object.values(j.retVal).map(s => {
-      // ── 借車數 borrow：優先 sbi_quantity；否則 yb2 + eyb；最後備援 sbi
-      const borrow =
-        (s.sbi_quantity != null && s.sbi_quantity !== '' ? num(s.sbi_quantity) : 0) ||
-        (num(s.yb2_quantity) + num(s.eyb_quantity)) ||
-        num(s.sbi);
-
-      // ── 可還數 ret：若來源也分系統，可套同樣邏輯；否則沿用 bemp
-      const ret =
-        (s.bemp_quantity != null && s.bemp_quantity !== '' ? num(s.bemp_quantity) : 0) ||
-        (num(s.yb2_bemp) + num(s.eyb_bemp)) ||   // 若沒有這兩欄，這行會加 0+0
-        num(s.bemp);
-
-      return {
-        name: s.sna,
-        addr: s.ar || "",
-        lat: num(s.lat),
-        lng: num(s.lng),
-        borrow,
-        ret
-      };
-    });
-
+    dataTP = j.map(s => ({
+      name: s.sna,
+      addr: s.ar || "",
+      lat: Number(s.latitude),
+      lng: Number(s.longitude),
+      borrow: Number(s.available_rent_bikes),
+      ret: Number(s.available_return_bikes)
+    }));
     render();
-  })
-
+  });
 
 search.addEventListener("input", render);
 statusFilter.addEventListener("change", render);
@@ -252,6 +239,3 @@ statusFilter.addEventListener("change", render);
 
 </body>
 </html>
-
-
-
