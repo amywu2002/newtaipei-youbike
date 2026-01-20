@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -7,8 +8,7 @@
 
 <link
   rel="stylesheet"
-  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
+ 1.9.4/dist/leaflet.css
 
 <style>
 html, body {
@@ -16,11 +16,7 @@ html, body {
   height: 100%;
   font-family: system-ui, -apple-system, BlinkMacSystemFont;
 }
-
-#map {
-  height: 100%;
-}
-
+#map { height: 100%; }
 /* 左上站數 */
 #count {
   position: absolute;
@@ -33,27 +29,15 @@ html, body {
   box-shadow: 0 2px 6px rgba(0,0,0,.2);
   font-size: 14px;
 }
-
 /* marker */
-.leaflet-div-icon {
-  background: none;
-  border: none;
-}
-
+.leaflet-div-icon { background: none; border: none; }
 .marker {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 36px; height: 36px; border-radius: 50%;
+  color: #fff; font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
   border: 3px solid #fff;
   box-shadow: 0 2px 6px rgba(0,0,0,.3);
 }
-
 .green  { background: #2ecc71; }
 .yellow { background: #f1c40f; }
 .red    { background: #e74c3c; }
@@ -61,25 +45,20 @@ html, body {
 </head>
 
 <body>
-
 <div id="count">站點：--</div>
 <div id="map"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
+https://unpkg.com/leaflet@1.9.4/dist/leaflet.js</script>
 <script>
-const API =
-  "https://data.ntpc.gov.tw/api/datasets/010e5b15-3823-4b20-b401-b1cf000550c5/json";
+const API = "https://data.ntpc.gov.tw/api/datasets/010e5b15-3823-4b20-b401-b1cf000550c5/json";
 
 /* 地圖 */
 const map = L.map("map").setView([25.0169, 121.4628], 11);
-
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution: "© OpenStreetMap"
+  attribution: "© OpenStreetMap contributors"
 }).addTo(map);
 
 let markers = [];
-
 function clearMarkers() {
   markers.forEach(m => map.removeLayer(m));
   markers = [];
@@ -94,45 +73,47 @@ function getStatus(bike, empty) {
 function makeIcon(bike, empty) {
   const status = getStatus(bike, empty);
   return L.divIcon({
-    className: "",
+    className: "leaflet-div-icon",
     iconSize: [36, 36],
     html: `<div class="marker ${status}">${bike}</div>`
   });
 }
 
-/* 載入資料（hippop3c 核心邏輯） */
-fetch(API)
-  .then(r => r.json())
-  .then(data => {
-    clearMarkers();
+async function loadData() {
+  const r = await fetch(API);
+  const data = await r.json();
 
-    data
-      .filter(s => s.act === "1")
-      .forEach(s => {
-        const bike = Number(s.sbi_quantity);
-        const empty = Number(s.bemp);
+  clearMarkers();
+  data
+    .filter(s => s.act === "1")
+    .forEach(s => {
+      const bike = Number(s.sbi);   // ← 修正
+      const empty = Number(s.bemp);
 
-        const marker = L.marker(
-          [Number(s.lat), Number(s.lng)],
-          { icon: makeIcon(bike, empty) }
-        )
-        .addTo(map)
-        .bindPopup(`
-          <b>${s.sna}</b><br>
-          區域：${s.sarea}<br>
-          地址：${s.ar}<br>
-          可借：${bike}<br>
-          可還：${empty}<br>
-          更新：${s.mday}
-        `);
+      const marker = L.marker(
+        [Number(s.lat), Number(s.lng)],
+        { icon: makeIcon(bike, empty) }
+      )
+      .addTo(map)
+      .bindPopup(`
+        <b>${s.sna}</b><br>
+        區域：${s.sarea}<br>
+        地址：${s.ar}<br>
+        可借：${bike}<br>
+        可還：${empty}<br>
+        更新：${s.mday}
+      `);
 
-        markers.push(marker);
-      });
+      markers.push(marker);
+    });
 
-    document.getElementById("count").textContent =
-      `站點：${markers.length} 站`;
-  });
+  document.getElementById("count").textContent = `站點：${markers.length} 站`;
+}
+
+// 先載一次
+loadData();
+// 想要自動更新再打開下面：
+// setInterval(loadData, 30000);
 </script>
-
 </body>
 </html>
