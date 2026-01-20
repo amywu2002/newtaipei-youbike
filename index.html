@@ -244,9 +244,6 @@ fetch(TAOYUAN_API)
 
     render();
   })
-  .catch(err => {
-    console.error('[TAOYUAN_API] 載入失敗：', err);
-  });
 
 
 search.addEventListener("input", render);
@@ -255,5 +252,6 @@ statusFilter.addEventListener("change", render);
 
 </body>
 </html>
+
 
 
