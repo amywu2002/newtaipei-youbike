@@ -2,39 +2,61 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8" />
-<title>YouBike 即時地圖（官方 API）</title>
+<title>新北 YouBike 即時地圖</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
 
 <style>
-body { margin:0; font-family: system-ui, -apple-system, BlinkMacSystemFont; }
-#map { height:100vh; width:100%; }
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont;
+}
 
+#map {
+  height: 100%;
+}
+
+/* 左上站數 */
 #count {
-  position:absolute;
-  top:12px; left:12px;
-  z-index:1000;
-  background:#fff;
-  padding:6px 10px;
-  border-radius:8px;
-  box-shadow:0 2px 6px rgba(0,0,0,.15);
-  font-size:14px;
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  background: #fff;
+  padding: 6px 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.2);
+  font-size: 14px;
 }
 
-.marker.green  { --c:#2ecc71; }
-.marker.yellow { --c:#f1c40f; }
-.marker.red    { --c:#e74c3c; }
-
+/* marker */
 .leaflet-div-icon {
-  background:transparent!important;
-  border:none!important;
+  background: none;
+  border: none;
 }
 
-.marker svg {
-  width:56px;
-  height:64px;
+.marker {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,.3);
 }
+
+.green  { background: #2ecc71; }
+.yellow { background: #f1c40f; }
+.red    { background: #e74c3c; }
 </style>
 </head>
 
@@ -46,91 +68,70 @@ body { margin:0; font-family: system-ui, -apple-system, BlinkMacSystemFont; }
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-/* === 官方可用 API（hippop3c 就是這一組） === */
-const STATION_API =
-  "https://apis.youbike.com.tw/json/station-min-yb2.json";
+const API =
+  "https://data.ntpc.gov.tw/api/datasets/010e5b15-3823-4b20-b401-b1cf000550c5/json";
 
-const STATUS_API =
-  "https://apis.youbike.com.tw/json/stationStatus-min-yb2.json";
+/* 地圖 */
+const map = L.map("map").setView([25.0169, 121.4628], 11);
 
-/* === 地圖 === */
-const map = L.map("map").setView([25.03, 121.55], 12);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution:"© OpenStreetMap"
+  attribution: "© OpenStreetMap"
 }).addTo(map);
 
 let markers = [];
 
-/* === 工具 === */
 function clearMarkers() {
   markers.forEach(m => map.removeLayer(m));
   markers = [];
 }
 
-function statusColor(b, r) {
-  if (r === 0) return "red";
-  if (b === 0) return "yellow";
+function getStatus(bike, empty) {
+  if (empty === 0) return "red";
+  if (bike === 0) return "yellow";
   return "green";
 }
 
-function markerHTML(b, r, c) {
-  return `
-  <div class="marker ${c}">
-    <svg viewBox="0 0 64 72">
-      <path d="M32 2 C20 2 10 12 10 26
-               C10 44 32 68 32 68
-               C32 68 54 44 54 26
-               C54 12 44 2 32 2Z"
-        fill="var(--c)" stroke="#fff" stroke-width="3"/>
-      <text x="32" y="30" text-anchor="middle"
-        font-size="16" font-weight="700" fill="#fff">${b}</text>
-      <text x="32" y="52" text-anchor="middle"
-        font-size="14" fill="#fff">${r}</text>
-    </svg>
-  </div>`;
+function makeIcon(bike, empty) {
+  const status = getStatus(bike, empty);
+  return L.divIcon({
+    className: "",
+    iconSize: [36, 36],
+    html: `<div class="marker ${status}">${bike}</div>`
+  });
 }
 
-/* === 主流程（和 hippop3c 同邏輯） === */
-Promise.all([
-  fetch(STATION_API).then(r => r.json()),
-  fetch(STATUS_API).then(r => r.json())
-]).then(([stations, status]) => {
+/* 載入資料（hippop3c 核心邏輯） */
+fetch(API)
+  .then(r => r.json())
+  .then(data => {
+    clearMarkers();
 
-  /* 站號 → 狀態 */
-  const statusMap = {};
-  status.forEach(s => {
-    statusMap[s.station_no] = s;
+    data
+      .filter(s => s.act === "1")
+      .forEach(s => {
+        const bike = Number(s.sbi_quantity);
+        const empty = Number(s.bemp);
+
+        const marker = L.marker(
+          [Number(s.lat), Number(s.lng)],
+          { icon: makeIcon(bike, empty) }
+        )
+        .addTo(map)
+        .bindPopup(`
+          <b>${s.sna}</b><br>
+          區域：${s.sarea}<br>
+          地址：${s.ar}<br>
+          可借：${bike}<br>
+          可還：${empty}<br>
+          更新：${s.mday}
+        `);
+
+        markers.push(marker);
+      });
+
+    document.getElementById("count").textContent =
+      `站點：${markers.length} 站`;
   });
-
-  clearMarkers();
-
-  stations.forEach(s => {
-    const st = statusMap[s.station_no];
-    if (!st) return;
-
-    const b = Number(st.available_rent_bikes);
-    const r = Number(st.available_return_bikes);
-    const c = statusColor(b, r);
-
-    const marker = L.marker([s.lat, s.lng], {
-      icon: L.divIcon({
-        iconSize:[56,64],
-        iconAnchor:[28,64],
-        html: markerHTML(b, r, c)
-      })
-    }).addTo(map).bindPopup(`
-      <b>${s.name_tw}</b><br>
-      可借：${b}<br>
-      可還：${r}
-    `);
-
-    markers.push(marker);
-  });
-
-  document.getElementById("count").textContent =
-    `站點：${markers.length} 站`;
-
-});
 </script>
 
 </body>
