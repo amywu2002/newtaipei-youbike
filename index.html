@@ -209,19 +209,45 @@ function render() {
 }
 
 /* ===== 資料 ===== */
+
 fetch(TAOYUAN_API)
   .then(r => r.json())
   .then(j => {
-    dataTY = Object.values(j.retVal).map(s => ({
-      name: s.sna,
-      addr: s.ar || "",
-      lat: Number(s.lat),
-      lng: Number(s.lng),
-      borrow: Number(s.sbi_quantity),
-      ret: Number(s.bemp)
-    }));
+    // 安全轉數字的小工具：非數字就回 0，避免 NaN
+    const num = v => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    dataTY = Object.values(j.retVal).map(s => {
+      // ── 借車數 borrow：優先 sbi_quantity；否則 yb2 + eyb；最後備援 sbi
+      const borrow =
+        (s.sbi_quantity != null && s.sbi_quantity !== '' ? num(s.sbi_quantity) : 0) ||
+        (num(s.yb2_quantity) + num(s.eyb_quantity)) ||
+        num(s.sbi);
+
+      // ── 可還數 ret：若來源也分系統，可套同樣邏輯；否則沿用 bemp
+      const ret =
+        (s.bemp_quantity != null && s.bemp_quantity !== '' ? num(s.bemp_quantity) : 0) ||
+        (num(s.yb2_bemp) + num(s.eyb_bemp)) ||   // 若沒有這兩欄，這行會加 0+0
+        num(s.bemp);
+
+      return {
+        name: s.sna,
+        addr: s.ar || "",
+        lat: num(s.lat),
+        lng: num(s.lng),
+        borrow,
+        ret
+      };
+    });
+
     render();
+  })
+  .catch(err => {
+    console.error('[TAOYUAN_API] 載入失敗：', err);
   });
+
 
 search.addEventListener("input", render);
 statusFilter.addEventListener("change", render);
@@ -229,4 +255,5 @@ statusFilter.addEventListener("change", render);
 
 </body>
 </html>
+
 
