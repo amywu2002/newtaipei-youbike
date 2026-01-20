@@ -2,118 +2,110 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8" />
-<title>新北 YouBike 即時地圖</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8" />
+  <title>新北 YouBike 即時地圖</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<link
-  rel="stylesheet"
- 1.9.4/dist/leaflet.css
+  <!-- Leaflet：如公司網路擋 unpkg，可改用 jsDelivr -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+ height: 100%; font-family: system-ui, -apple-system, BlinkMacSystemFont; }
+    #map { height: 100%; }
 
-<style>
-html, body {
-  margin: 0;
-  height: 100%;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont;
-}
-#map { height: 100%; }
-/* 左上站數 */
-#count {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 1000;
-  background: #fff;
-  padding: 6px 10px;
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0,0,0,.2);
-  font-size: 14px;
-}
-/* marker */
-.leaflet-div-icon { background: none; border: none; }
-.marker {
-  width: 36px; height: 36px; border-radius: 50%;
-  color: #fff; font-size: 12px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  border: 3px solid #fff;
-  box-shadow: 0 2px 6px rgba(0,0,0,.3);
-}
-.green  { background: #2ecc71; }
-.yellow { background: #f1c40f; }
-.red    { background: #e74c3c; }
-</style>
+    /* 左上站數 */
+    #count {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 1000;
+      background: #fff;
+      padding: 6px 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.2);
+      font-size: 14px;
+    }
+
+    /* marker */
+    .leaflet-div-icon { background: none; border: none; }
+    .marker {
+      width: 36px; height: 36px; border-radius: 50%;
+      color: #fff; font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3);
+    }
+    .green  { background: #2ecc71; }
+    .yellow { background: #f1c40f; }
+    .red    { background: #e74c3c; }
+  </style>
 </head>
 
 <body>
-<div id="count">站點：--</div>
-<div id="map"></div>
+  <div id="count">站點：--</div>
+  <div id="map"></div>
 
-https://unpkg.com/leaflet@1.9.4/dist/leaflet.js</script>
-<script>
-const API = "https://data.ntpc.gov.tw/api/datasets/010e5b15-3823-4b20-b401-b1cf000550c5/json";
+  https://unpkg.com/leaflet@1.9.4/dist/leaflet.js</script>
+  <script>
+    const API = "https://data.ntpc.gov.tw/api/datasets/010e5b15-3823-4b20-b401-b1cf000550c5/json";
 
-/* 地圖 */
-const map = L.map("map").setView([25.0169, 121.4628], 11);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution: "© OpenStreetMap contributors"
-}).addTo(map);
+    // 地圖
+    const map = L.map("map").setView([25.0169, 121.4628], 11);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors"
+    }).addTo(map);
 
-let markers = [];
-function clearMarkers() {
-  markers.forEach(m => map.removeLayer(m));
-  markers = [];
-}
+    let markers = [];
+    function clearMarkers() { markers.forEach(m => map.removeLayer(m)); markers = []; }
 
-function getStatus(bike, empty) {
-  if (empty === 0) return "red";
-  if (bike === 0) return "yellow";
-  return "green";
-}
+    function getStatus(bike, empty) {
+      if (empty === 0) return "red";    // 滿位
+      if (bike === 0)  return "yellow"; // 無車
+      return "green";
+    }
 
-function makeIcon(bike, empty) {
-  const status = getStatus(bike, empty);
-  return L.divIcon({
-    className: "leaflet-div-icon",
-    iconSize: [36, 36],
-    html: `<div class="marker ${status}">${bike}</div>`
-  });
-}
+    function makeIcon(bike, empty) {
+      const status = getStatus(bike, empty);
+      return L.divIcon({
+        className: "leaflet-div-icon",
+        iconSize: [36, 36],
+        html: `<div class="marker ${status}">${bike}</div>`
+      });
+    }
 
-async function loadData() {
-  const r = await fetch(API);
-  const data = await r.json();
+    // 載入資料
+    async function load() {
+      try {
+        const r = await fetch(API);
+        const data = await r.json();
 
-  clearMarkers();
-  data
-    .filter(s => s.act === "1")
-    .forEach(s => {
-      const bike = Number(s.sbi);   // ← 修正
-      const empty = Number(s.bemp);
+        clearMarkers();
+        data.filter(s => s.act === "1").forEach(s => {
+          const bike  = Number(s.sbi);   // 正確欄位
+          const empty = Number(s.bemp);
 
-      const marker = L.marker(
-        [Number(s.lat), Number(s.lng)],
-        { icon: makeIcon(bike, empty) }
-      )
-      .addTo(map)
-      .bindPopup(`
-        <b>${s.sna}</b><br>
-        區域：${s.sarea}<br>
-        地址：${s.ar}<br>
-        可借：${bike}<br>
-        可還：${empty}<br>
-        更新：${s.mday}
-      `);
+          const marker = L.marker([Number(s.lat), Number(s.lng)], {
+            icon: makeIcon(bike, empty)
+          }).addTo(map)
+            .bindPopup(`
+              <b>${s.sna}</b><br>
+              區域：${s.sarea}<br>
+              地址：${s.ar}<br>
+              可借：${bike}<br>
+              可還：${empty}<br>
+              更新：${s.mday}
+            `);
+          markers.push(marker);
+        });
 
-      markers.push(marker);
-    });
+        document.getElementById("count").textContent = `站點：${markers.length} 站`;
+      } catch (e) {
+        console.error(e);
+        document.getElementById("count").textContent = "載入失敗，請稍後再試";
+      }
+    }
 
-  document.getElementById("count").textContent = `站點：${markers.length} 站`;
-}
-
-// 先載一次
-loadData();
-// 想要自動更新再打開下面：
-// setInterval(loadData, 30000);
-</script>
+    load();
+    // 如果要自動刷新： setInterval(load, 30000);
+  </script>
 </body>
 </html>
