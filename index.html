@@ -2,53 +2,36 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8" />
-<title>新北 YouBike 站點地圖</title>
+<title>新北 YouBike 即時地圖</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
 <style>
-body { margin:0; font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-#map { height:100vh; width:100%; }
-
-#count {
-  position:absolute; top:12px; left:12px; z-index:1000;
-  background:#fff; padding:6px 10px;
-  border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.15);
+body{margin:0;font-family:system-ui;}
+#map{height:100vh;}
+#count{
+  position:absolute;top:12px;left:12px;z-index:1000;
+  background:#fff;padding:6px 10px;border-radius:8px;
 }
-
-#controls {
-  position:absolute; top:12px; left:50%;
-  transform:translateX(-50%);
-  z-index:1000; display:flex; gap:8px;
+#controls{
+  position:absolute;top:12px;left:50%;
+  transform:translateX(-50%);z-index:1000;display:flex;gap:8px;
 }
-
-#controls input,#controls select {
-  padding:8px 10px; border-radius:8px;
-  border:1px solid #ccc; box-shadow:0 2px 6px rgba(0,0,0,.15);
+#controls input,#controls select{
+  padding:8px;border-radius:8px;border:1px solid #ccc;
 }
-
 .marker.green{--c:#7AC943;}
 .marker.yellow{--c:#F5A623;}
 .marker.red{--c:#A80000;}
-
-.leaflet-div-icon{background:transparent!important;border:none!important;}
+.leaflet-div-icon{background:transparent;border:none;}
 .marker svg{width:60px;height:68px;}
-.leaflet-top.leaflet-left{right:12px;left:auto;}
-
-.user-dot{
-  width:18px;height:18px;background:#1A73E8;
-  border-radius:50%;border:3px solid #fff;
-}
 </style>
 </head>
 
 <body>
-
 <div id="count">站點：--</div>
-
 <div id="controls">
-  <input id="search" placeholder="搜尋站點名稱或地址…" />
+  <input id="search" placeholder="搜尋站點…" />
   <select id="statusFilter">
     <option value="all">全部</option>
     <option value="green">正常</option>
@@ -56,25 +39,14 @@ body { margin:0; font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe 
     <option value="red">無位</option>
   </select>
 </div>
-
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 <script>
-/* 🔥 新北 API（含 CORS + 全部資料） */
-const NTPC_API =
-  "https://api.allorigins.win/raw?url=" +
-  encodeURIComponent(
-    "https://data.ntpc.gov.tw/api/datasets/010e5b15-3823-4b20-b401-b1cf000550c5/json?limit=10000"
-  );
-
-const map = L.map("map").setView([25.01,121.46],12);
-map.zoomControl.setPosition("topright");
-
+const map=L.map("map").setView([25.01,121.46],12);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
-let data=[], markers=[];
+let data=[],markers=[];
 
 /* 狀態 */
 const getStatus=(b,r)=>r===0?"red":b===0?"yellow":"green";
@@ -89,49 +61,71 @@ const markerHTML=(b,r,s)=>`
 </svg>
 </div>`;
 
-function render(){
+/* 清 marker */
+function clearMarkers(){
   markers.forEach(m=>map.removeLayer(m));
   markers=[];
+}
 
+/* render */
+function render(){
+  clearMarkers();
   const kw=search.value.trim();
   const f=statusFilter.value;
 
-  data.filter(s=>{
+  const list=data.filter(s=>{
     const st=getStatus(s.borrow,s.ret);
-    if(f!=="all"&&st!==f) return false;
-    if(kw&&!s.name.includes(kw)&&!s.addr.includes(kw)) return false;
+    if(f!=="all"&&st!==f)return false;
+    if(kw&&!s.name.includes(kw))return false;
     return true;
-  }).forEach(s=>{
+  });
+
+  list.forEach(s=>{
     const m=L.marker([s.lat,s.lng],{
       icon:L.divIcon({
         iconSize:[60,68],
         iconAnchor:[30,68],
         html:markerHTML(s.borrow,s.ret,getStatus(s.borrow,s.ret))
       })
-    }).addTo(map)
-    .bindPopup(`<b>${s.name}</b><br>${s.addr}<br>可借:${s.borrow} 可還:${s.ret}`);
+    }).addTo(map);
     markers.push(m);
   });
 
   count.textContent=`站點：${markers.length}站`;
 }
 
-fetch(NTPC_API)
-.then(r=>r.json())
-.then(j=>{
-  data=j.map(s=>({
+/* 🔥 正確的新北即時資料（分頁全抓） */
+async function loadAllData(){
+  let page=0;
+  let all=[];
+  while(true){
+    const url=
+      "https://api.allorigins.win/raw?url="+
+      encodeURIComponent(
+        `https://data.ntpc.gov.tw/api/datasets/71CD1490-A2DF-4198-BEF1-318479775E8A/json?page=${page}`
+      );
+
+    const res=await fetch(url);
+    const j=await res.json();
+    if(!j.length)break;
+    all=all.concat(j);
+    page++;
+  }
+
+  data=all.map(s=>({
     name:s.sna,
-    addr:s.ar||"",
     lat:+s.lat,
     lng:+s.lng,
     borrow:Number(s.sbi)||0,
     ret:Number(s.bemp)||0
   }));
+
   render();
-});
+}
+
+loadAllData();
 search.oninput=render;
 statusFilter.onchange=render;
 </script>
-
 </body>
 </html>
