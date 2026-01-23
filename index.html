@@ -163,23 +163,19 @@ function getStatus(b, r) {
 /* ===== 桃園同款 SVG marker ===== */
 function makeMarkerHTML(b, r, status) {
   return `
-    <div class="marker ${status}">
-      <svg viewBox="0 0 64 64">
-        <circle cx="32" cy="32" r="28"
-          fill="var(--fill)"
-          stroke="var(--stroke)"
-          stroke-width="4"/>
-        <line x1="18" y1="32" x2="46" y2="32"
-          stroke="#000"
-          stroke-width="2"/>
-        <text x="32" y="26" text-anchor="middle"
-          font-size="18" font-weight="700" fill="#000">${b}</text>
-        <text x="32" y="50" text-anchor="middle"
-          font-size="18" font-weight="700" fill="#000">${r}</text>
-      </svg>
-    </div>`;
+  <div class="marker ${status}">
+    <svg viewBox="0 0 60 60">
+      <circle cx="30" cy="30" r="26"
+        fill="var(--c)" stroke="var(--s)" stroke-width="4"/>
+      <line x1="14" y1="30" x2="46" y2="30"
+        stroke="var(--s)" stroke-width="3"/>
+      <text x="30" y="24" text-anchor="middle"
+        font-size="16" font-weight="700" fill="var(--s)">${b}</text>
+      <text x="30" y="46" text-anchor="middle"
+        font-size="16" font-weight="700" fill="var(--s)">${r}</text>
+    </svg>
+  </div>`;
 }
-
 
 function render() {
   clearMarkers();
