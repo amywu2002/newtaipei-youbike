@@ -126,7 +126,7 @@ body {
 
     <select id="city">
       <option value="all">縣市</option>
-      <option value="tp">新北</option>
+      <option value="nt">新北</option>
     </select>
 
     <select id="statusFilter">
@@ -155,7 +155,7 @@ body {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-const TAIPEI_API =
+const NEWTAIPEI_API =
   "https://cool-block-affbntpc-youbike-proxy.amywu2.workers.dev/ntpc";
 
 const map = L.map("map").setView([25.03, 121.55], 11);
@@ -169,7 +169,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 let markers = [];
-let dataTP = [];
+let dataNT = [];
 let userMarker = null;
 
 if (navigator.geolocation) {
@@ -228,7 +228,7 @@ function render() {
   const statusF = statusFilter.value;
 
   let list = [];
-  if (cityF === "all" || cityF === "tp") list = list.concat(dataTP);
+  if (cityF === "all" || cityF === "nt") list = list.concat(dataNT);
 
   list
     .filter(s => {
@@ -260,16 +260,16 @@ function render() {
 }
 
 function loadData() {
-  fetch(TAIPEI_API)
+  fetch(NEWTAIPEI_API)
     .then(r => r.json())
-    .then(tp => {
-      dataTP = tp.map(s => ({
+    .then(nt => {
+      dataTP = nt.map(s => ({
         name: s.sna,
         addr: s.ar || "",
-        lat: +s.latitude,
-        lng: +s.longitude,
-        borrow: +s.available_rent_bikes,
-        ret: +s.available_return_bikes
+        lat: +s.lat,
+        lng: +s.lng,
+        borrow: +s.sbi_quantity,
+        ret: +s.bemp
       }));
 
       lastUpdate.textContent =
@@ -296,3 +296,4 @@ city.addEventListener("change", render);
 
 </body>
 </html>
+
