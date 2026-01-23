@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8" />
-<title>新北YouBike站點地圖</title>
+<title>YouBike站點地圖</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -61,34 +61,16 @@ body {
   color: rgba(255,255,255,.75);
 }
 
-.meta button {
-  background: rgba(255,255,255,.12);
-  border: 1px solid rgba(255,255,255,.2);
-  color: #fff;
-  padding: 6px 12px;
-  border-radius: 999px;
-  cursor: pointer;
-}
-
 /* ===== 地圖 ===== */
 #map {
   height: calc(100vh - 190px);
   width: 100%;
 }
 
-/* ===== marker 顏色（與桃園完全一致） ===== */
-.marker.green  {
-  --fill: #2DBE60;
-  --stroke: #1E7F42;
-}
-.marker.yellow {
-  --fill: #F2A31B;
-  --stroke: #B87400;
-}
-.marker.red    {
-  --fill: #E64545;
-  --stroke: #9E2A2A;
-}
+/* ===== 桃園同款 marker 顏色（含外框 / 字 / 線） ===== */
+.marker.green  { --c:#4CAF50; --s:#2E7D32; }
+.marker.yellow { --c:#F5A623; --s:#C88719; }
+.marker.red    { --c:#E53935; --s:#A80000; }
 
 .leaflet-div-icon {
   background: transparent !important;
@@ -96,8 +78,8 @@ body {
 }
 
 .marker svg {
-  width: 56px;
-  height: 56px;
+  width: 60px;
+  height: 60px;
 }
 
 .leaflet-top.leaflet-left {
@@ -119,7 +101,7 @@ body {
 <body>
 
 <header id="topbar">
-  <h1>新北YouBike 2.0｜即時場站地圖</h1>
+  <h1>YouBike 2.0｜即時場站地圖</h1>
 
   <div class="toolbar">
     <input id="search" placeholder="搜尋場站名稱 / 地址…" />
@@ -146,7 +128,6 @@ body {
   <div class="meta">
     <span id="lastUpdate">最後更新：--</span>
     <span id="count">筆數：--</span>
-    <button id="refresh">↻ 立即更新</button>
   </div>
 </header>
 
@@ -155,14 +136,11 @@ body {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-const NEWTAIPEI_API =
+const NEWTAI_API =
   "https://cool-block-affbntpc-youbike-proxy.amywu2.workers.dev/ntpc";
 
 const map = L.map("map").setView([25.03, 121.55], 11);
 map.zoomControl.setPosition("topright");
-
-map.createPane("userLocation");
-map.getPane("userLocation").style.zIndex = 650;
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap"
@@ -170,24 +148,6 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 let markers = [];
 let dataNT = [];
-let userMarker = null;
-
-if (navigator.geolocation) {
-  navigator.geolocation.getCurrentPosition(pos => {
-    userMarker = L.marker(
-      [pos.coords.latitude, pos.coords.longitude],
-      {
-        pane: "userLocation",
-        icon: L.divIcon({
-          className: "",
-          iconSize: [24, 24],
-          html: `<div class="user-dot"></div>`
-        })
-      }
-    ).addTo(map);
-    map.setView([pos.coords.latitude, pos.coords.longitude], 14);
-  });
-}
 
 function clearMarkers() {
   markers.forEach(m => map.removeLayer(m));
@@ -200,7 +160,7 @@ function getStatus(b, r) {
   return "green";
 }
 
-/* ===== 改成與桃園一樣的圓形 marker ===== */
+/* ===== 桃園同款 SVG marker ===== */
 function makeMarkerHTML(b, r, status) {
   return `
     <div class="marker ${status}">
@@ -220,17 +180,14 @@ function makeMarkerHTML(b, r, status) {
     </div>`;
 }
 
+
 function render() {
   clearMarkers();
 
   const kw = search.value.trim();
-  const cityF = city.value;
   const statusF = statusFilter.value;
 
-  let list = [];
-  if (cityF === "all" || cityF === "nt") list = list.concat(dataNT);
-
-  list
+  dataNT
     .filter(s => {
       const st = getStatus(s.borrow, s.ret);
       if (statusF !== "all" && st !== statusF) return false;
@@ -240,18 +197,11 @@ function render() {
     .forEach(s => {
       const marker = L.marker([s.lat, s.lng], {
         icon: L.divIcon({
-          iconSize: [56, 56],
-          iconAnchor: [28, 28],
+          iconSize: [60, 60],
+          iconAnchor: [30, 30],
           html: makeMarkerHTML(s.borrow, s.ret, getStatus(s.borrow, s.ret))
         })
-      })
-      .addTo(map)
-      .bindPopup(`
-        <b>${s.name}</b><br>
-        地址：${s.addr}<br>
-        可借：${s.borrow}<br>
-        可還：${s.ret}
-      `);
+      }).addTo(map);
 
       markers.push(marker);
     });
@@ -260,40 +210,26 @@ function render() {
 }
 
 function loadData() {
-  fetch(NEWTAIPEI_API)
-    .then(r => r.json())
-    .then(nt => {
-      dataTP = nt.map(s => ({
-        name: s.sna,
-        addr: s.ar || "",
-        lat: +s.lat,
-        lng: +s.lng,
-        borrow: +s.sbi_quantity,
-        ret: +s.bemp
-      }));
-
-      lastUpdate.textContent =
-        "最後更新：" + new Date().toLocaleString();
-
-      render();
-    });
+  fetch(NEWTAI_API).then(r => r.json()).then(nt => {
+    dataNT = nt.map(s => ({
+      name: s.sna,
+      addr: s.ar || "",
+      lat: +s.lat,
+      lng: +s.lng,
+      borrow: +s.sbi_quantity,
+      ret: +s.bemp
+    }));
+    lastUpdate.textContent = "最後更新：" + new Date().toLocaleString();
+    render();
+  });
 }
 
 loadData();
-let timer = setInterval(loadData, 30000);
+setInterval(loadData, 30000);
 
-interval.addEventListener("change", e => {
-  clearInterval(timer);
-  const sec = Number(e.target.value);
-  if (sec > 0) timer = setInterval(loadData, sec * 1000);
-});
-
-refresh.addEventListener("click", loadData);
 search.addEventListener("input", render);
 statusFilter.addEventListener("change", render);
-city.addEventListener("change", render);
 </script>
 
 </body>
 </html>
-
